@@ -6,6 +6,7 @@
 import leaflet from "leaflet";
 import { eventBus } from "../main.js";
 import "leaflet.markercluster";
+import axios from "axios";
 
 export default {
   name: "mymap",
@@ -15,10 +16,12 @@ export default {
       leaf: null, //Interactive map
       cluster: null,
       schools: null,
-      hospitals: null,
+      hospitals: null
     };
   },
 
+  // api for schools: https://data.calgary.ca/resource/fd9t-tdn2.geojson
+  // api for hospitals:
   mounted() {
     this.initMap();
 
@@ -111,8 +114,40 @@ export default {
       //adds scale bar
       leaflet.control.scale().addTo(this.leaf);
       //adds layer control to the map
-      var defaultTile = { OpenStreetMap: OSMtile, Satellite: satellite};
+      var defaultTile = { OpenStreetMap: OSMtile, Satellite: satellite };
       leaflet.control.layers(defaultTile).addTo(this.leaf);
+
+      let _this = this;
+
+      // add schools to map
+      axios
+        .get("https://data.calgary.ca/resource/fd9t-tdn2.geojson")
+        .then(function(response) {
+          _this.schools = response.data.features;
+          //custom school icon
+          var schoolMarker = leaflet.divIcon({
+            className: "marker",
+            iconSize: [48, 48],
+          });
+          var geoLayer = leaflet.geoJson(_this.schools, {
+            pointToLayer: function(feature, latlng) {
+              return leaflet.marker(latlng, { icon: schoolMarker });
+            }
+          });
+
+          //bind popup to all markers
+          _this.cluster = leaflet.markerClusterGroup();
+          _this.cluster.addLayer(geoLayer);
+
+          _this.cluster.eachLayer(function(layer) {
+            layer.bindPopup(layer.feature.properties.name).openPopup();
+          });
+          _this.leaf.addLayer(_this.cluster);
+        })
+        .catch(function(error) {
+          console.log(error);
+        });
+
     } //---- end of map initialization ----
   }
 };
