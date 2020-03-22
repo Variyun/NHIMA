@@ -7,6 +7,7 @@ import leaflet from "leaflet";
 import { eventBus } from "../main.js";
 import "leaflet.markercluster";
 import axios from "axios";
+import * as turf from "@turf/turf";
 
 export default {
   name: "mymap",
@@ -16,67 +17,21 @@ export default {
       leaf: null, //Interactive map
       cluster: null,
       schools: null,
-      hospitals: null
+      hospitals: null,
+      path: null
     };
   },
 
   // api for schools: https://data.calgary.ca/resource/fd9t-tdn2.geojson
   // api for hospitals:
   mounted() {
+  
     this.initMap();
 
-    eventBus.$on("displayPermits", data => {
-      // if markers already exists, remove old ones
-      if (this.cluster != null) {
-        this.leaf.removeLayer(this.cluster);
+    eventBus.$on("clear", () => {
+      if (this.path != null) {
+        this.leaf.removeLayer(this.path);
       }
-      //add marker clusters
-      var geoLayer = leaflet.geoJSON(data);
-      //bind popup to all markers
-      this.cluster = leaflet.markerClusterGroup();
-      this.cluster.addLayer(geoLayer);
-
-      var date, work, contract, comm, addr;
-      date = work = contract = comm = addr = "Unknown";
-
-      this.cluster.eachLayer(function(layer) {
-        //check to see if any info field is not null, save field
-        if (layer.feature.properties.issueddate != null) {
-          date = layer.feature.properties.issueddate;
-        }
-        if (layer.feature.properties.workclassgroup != null) {
-          work = layer.feature.properties.workclassgroup;
-        }
-        if (layer.feature.properties.contractorname != null) {
-          contract = layer.feature.properties.contractorname;
-        }
-        if (layer.feature.properties.communityname != null) {
-          comm = layer.feature.properties.communityname;
-        }
-        if (layer.feature.properties.originaladdress != null) {
-          addr = layer.feature.properties.originaladdress;
-        }
-
-        layer
-          .bindPopup(
-            "Issued Date: " +
-              date +
-              "<br/>Work Class: " +
-              work +
-              "<br/>Contractor Name: " +
-              contract +
-              "<br/>Community Name: " +
-              comm +
-              "<br/>Original Address: " +
-              addr
-          )
-          .openPopup();
-      });
-      this.leaf.addLayer(this.cluster);
-      this.leaf.fitBounds([
-        [50.9, -114.2],
-        [51.2, -113.9]
-      ]);
     });
   },
 
@@ -127,11 +82,13 @@ export default {
           //custom school icon
           var schoolMarker = leaflet.divIcon({
             className: "marker",
-            iconSize: [48, 48],
+            iconSize: [32, 32]
           });
           var geoLayer = leaflet.geoJson(_this.schools, {
             pointToLayer: function(feature, latlng) {
-              return leaflet.marker(latlng, { icon: schoolMarker });
+              return leaflet
+                .marker(latlng, { icon: schoolMarker })
+                .on("click", onClick);
             }
           });
 
@@ -140,7 +97,7 @@ export default {
           _this.cluster.addLayer(geoLayer);
 
           _this.cluster.eachLayer(function(layer) {
-            layer.bindPopup(layer.feature.properties.name).openPopup();
+            layer.bindTooltip(layer.feature.properties.name);
           });
           _this.leaf.addLayer(_this.cluster);
         })
@@ -148,6 +105,86 @@ export default {
           console.log(error);
         });
 
+      //add hospitals and clinics to the map
+      axios
+        .get(
+          "https://data.calgary.ca/resource/x34e-bcjz.geojson?$where=type = 'Hospital' OR type = 'PHS Clinic'"
+        )
+        .then(function(response) {
+          _this.hospitals = response.data.features;
+          //custom hospital icon
+          var hospMarker = leaflet.divIcon({
+            className: "marker2",
+            iconSize: [32, 32]
+          });
+          var geoLayer2 = leaflet.geoJson(_this.hospitals, {
+            pointToLayer: function(feature, latlng) {
+              return leaflet.marker(latlng, { icon: hospMarker });
+            }
+          });
+
+          geoLayer2.eachLayer(function(layer) {
+            layer.bindTooltip(layer.feature.properties.name);
+          });
+          _this.leaf.addLayer(geoLayer2);
+        })
+        .catch(function(error) {
+          console.log(error);
+        });
+
+      //onclick function when users click on school marker
+      function onClick(e) {
+        var school = turf.point([e.latlng.lng, e.latlng.lat]);
+        var hosp = [];
+        for (var i = 0; i < _this.hospitals.length; ++i) {
+          hosp.push(turf.point(_this.hospitals[i].geometry.coordinates));
+        }
+        hosp = turf.featureCollection(hosp);
+        var nearesthospital = turf.nearestPoint(school, hosp);
+        //if line already exists, remove it before adding new one
+        if (_this.path != null) {
+          _this.leaf.removeLayer(_this.path);
+        }
+        // fix distance and create tooltip
+        var tooltip;
+        if ( nearesthospital.properties.distanceToPoint < 1.0) {
+          tooltip = "Distance is " + (nearesthospital.properties.distanceToPoint * 1000).toFixed(2) + " m";
+        } else {
+          tooltip = "Distance is " + nearesthospital.properties.distanceToPoint.toFixed(2) + " km";
+        }
+
+        _this.path = leaflet
+          .polyline(
+            [
+              [e.latlng.lat, e.latlng.lng],
+              [
+                nearesthospital.geometry.coordinates[1],
+                nearesthospital.geometry.coordinates[0]
+              ]
+            ],
+            { color: "red" }
+          )
+          .bindTooltip(tooltip)
+          .addTo(_this.leaf);
+        // get name of hospital
+        var name;
+        for (i = 0; i < _this.hospitals.length; i++) {
+          if (
+            nearesthospital.geometry.coordinates[0] ==
+              _this.hospitals[i].geometry.coordinates[0] &&
+            nearesthospital.geometry.coordinates[1] ==
+              _this.hospitals[i].geometry.coordinates[1]
+          ) {
+            name = _this.hospitals[i].properties.name;
+            break;
+          }
+        }
+        eventBus.$emit("foundHospital", {
+          school: e.target.feature.properties.name,
+          hospital: name
+        });
+        _this.leaf.fitBounds(_this.path.getBounds());
+      }
     } //---- end of map initialization ----
   }
 };

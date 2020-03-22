@@ -8,6 +8,15 @@
 
       <v-tooltip bottom>
         <template v-slot:activator="{ on }">
+          <v-btn text dark v-on="on" @click="clearpath();">
+            CLEAR
+          </v-btn>
+        </template>
+        <span>Clear path from map</span>
+      </v-tooltip>
+
+      <v-tooltip bottom>
+        <template v-slot:activator="{ on }">
           <v-btn icon  dark v-on="on" @click="about = !about">
             <v-icon large> mdi-information</v-icon>
           </v-btn>
@@ -17,16 +26,16 @@
 
       <v-dialog v-model="about" width="500" scrollable>
         <v-card>
-          <v-card-title class="headline grey lighten-2" primary-title>About MyPermit!</v-card-title>
+          <v-card-title class="headline grey lighten-2" primary-title>About NHIYA!</v-card-title>
 
           <v-card-text class="pt-2">
-            <h3>Do you want to find your permit or other permits quickly?</h3>
-            <br />
             <p
               style="font-size:110%;"
-            >Worry not because with MyPermit!, you can easily search for permits within any date range and find them on the map.</p>
+            >Welcome to "Nice Hospitals in Your Area" or NHIYA for short. Are you a sick student looking to get better? Broken leg? Bad cough? 
+            Well now you can find hospitals and clinics closest to your school! So what are you waiting for? These hospitals are 
+            desperately looking to patch you up!</p>
             <br />
-            <h3 style="text-align:center;">Thank You for Using MyPermit!</h3>
+            <h3 style="text-align:center;">Thank You for Using NHIYA!</h3>
           </v-card-text>
 
           <v-card-actions>
@@ -44,13 +53,16 @@
         <mymap />
       </v-container>
     </v-content>
+    <v-snackbar v-model="snackbar" color="red" :timeout=15000>
+      {{ alert }}
+      <v-btn color="black" text @click="snackbar = false">Close</v-btn>
+    </v-snackbar>
   </v-app>
 </template>
 
 <script>
 import mymap from "./leaflet";
-//import axios from "axios";
-//import { eventBus } from "../main.js";
+import { eventBus } from '../main';
 
 export default {
   name: "toolbar",
@@ -63,10 +75,20 @@ export default {
   data: () => ({
     sheet: false,
     alert: "If you are seeing this, contact the developer",
-    about: false
+    about: false,
+    snackbar: false,
   }),
 
+  mounted() {
+    eventBus.$on("foundHospital", data => {
+      this.alert = "Nearest Hospital/Cliic from " + data.school + " is " + data.hospital + "!";
+      this.snackbar = true;
+    });
+  },
   methods: {
+    clearpath() {
+      eventBus.$emit("clear");
+    }
   }
 };
 </script>
