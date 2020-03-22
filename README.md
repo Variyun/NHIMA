@@ -1,10 +1,10 @@
-# NHIMA
+# NHIYA
 Made for Engineering 551 - Advanced Geospatial Topics Winter 2020  
 Lab 4 - Geoweb Application w/ Spatial Analysis with Turf.js    
 
 ## Features 
 
-* **Find Nearest Hospitals/ Clinics:** Clicking on a school will find the closest hostpital/ clinic which is indicated by a line from the school to the hospital. Hovering over the line will display the distance. 
+* **Find Nearest Hospitals/ Clinics:** Clicking on a school will find the closest hospital/ clinic which is indicated by a line from the school to the hospital. Hovering over the line will display the distance. 
 
 * **Marker Clusters:** Once permits are found, they are visualized on the map. Groups of markers will cluster together and clicking on the cluster will expand the marker group. 
 
